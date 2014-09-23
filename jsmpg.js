@@ -32,7 +32,7 @@ var jsmpeg = window.jsmpeg = function( url, opts ) {
 	this.autoplay = !!opts.autoplay;
 	this.loop = !!opts.loop;
 	this.audioUrl = opts.audioUrl || null;
-	this.volume = opts.volume || 100;
+	this.volume = (typeof opts.volume==='undefined')?1:opts.volume;
 	this.externalProggressCallback = opts.onprogress || null;
 	this.externalLoadCallback = opts.onload || null;
 	this.externalDecodeCallback = opts.ondecodeframe || null;
@@ -94,9 +94,10 @@ jsmpeg.prototype.audioLoadCallback = function(file) {
       function(buffer) {
 					that.audioSource = jsmpegAudioContext.createBufferSource();
 					that.audioSource.buffer = buffer;
-					that.audioSource.connect(jsmpegAudioContext.destination);
+					//that.audioSource.connect(jsmpegAudioContext.destination);
 					that.audioGainNode = jsmpegAudioContext.createGain();
 					that.audioSource.connect(that.audioGainNode);
+					console.log('set volume', that.volume);
 					that.audioGainNode.gain.value = that.volume;
 					that.audioGainNode.connect(jsmpegAudioContext.destination);
 					that.audioLoaded=true;
