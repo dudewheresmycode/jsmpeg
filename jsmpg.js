@@ -123,7 +123,7 @@ var requestAnimFrame = (function(){
 			window.setTimeout(callback, 1000 / 60);
 		};
 })();
-var jsmpegAudioContext = new webkitAudioContext();
+var jsmpegAudioContext = new AudioContext();
 		
 var jsmpeg = window.jsmpeg = function( url, opts ) {
 	opts = opts || {};
