@@ -48,6 +48,46 @@ while( (frame = player.nextFrame()) ) {
 }
 ```
 
+
+### With Audio (WebAudio API) ###
+
+```javascript
+// Synopsis: var player = new jsmpeg(urlToFile, options);
+// The 'options' argument and all of its properties is optional. If no canvas element 
+// is given, jsmpeg will create its own, to be accessed at .canvas
+
+// Example:
+var canvas = document.getElementById('videoCanvas');
+var player = new jsmpeg('video.mpeg', {canvas: canvas, audioUrl: 'audio.mp3', autoplay: true, loop: true});
+
+player.pause();
+player.play();
+player.stop();
+
+
+// An 'onload' callback can be specified in the 'options' argument
+var mpegLoaded = function( player ) {
+	console.log('Loaded', player);
+	
+	// calculateFrameCount() and calculateDuration() can only be called
+	// after the mpeg has been fully loaded. So this callback is the ideal
+	// place to fetch this info
+	var frames = player.calculateFrameCount(),
+		duration = player.calculateDuration();
+		
+	console.log('Duration: '+duration+' seconds ('+frames+' frames)');
+};
+
+var player = new jsmpeg('file.mpeg', {onload:mpegLoaded});
+
+// If you don't use 'autoplay' and don't explicitly call .play(), you can get individual
+// video frames (a canvas element) like so:
+var frame = null;
+while( (frame = player.nextFrame()) ) {
+	someOtherCanvasContext.drawImage(frame, 0, 0);
+}
+```
+
 ### Live Streaming ###
 
 jsmpeg supports streaming live video through WebSockets. You can use ffmpeg and a nodejs server to serve the MPEG video. See this [blog post](http://phoboslab.org/log/2013/09/html5-live-video-streaming-via-websockets) for the details of setting up a server. Also have a look at the `stream-server.js` and `stream-example.html`.
