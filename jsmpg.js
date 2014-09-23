@@ -32,9 +32,11 @@ var jsmpeg = window.jsmpeg = function( url, opts ) {
 	this.autoplay = !!opts.autoplay;
 	this.loop = !!opts.loop;
 	this.audioUrl = opts.audioUrl || null;
+	this.audioBuffer=0;
 	this.volume = (typeof opts.volume==='undefined')?1:opts.volume;
 	this.externalProggressCallback = opts.onprogress || null;
 	this.externalLoadCallback = opts.onload || null;
+
 	this.externalDecodeCallback = opts.ondecodeframe || null;
 	this.externalFinishedCallback = opts.onfinished || null;
 	this.bwFilter = opts.bwFilter || false;
@@ -87,20 +89,12 @@ jsmpeg.prototype.updateLoader = function( ev ) {
 };
 	
 jsmpeg.prototype.audioLoadCallback = function(file) {
-	console.log('AUDIO LOAD!', btoa(file));
 	var that = this;
   jsmpegAudioContext.decodeAudioData(
       file,
       function(buffer) {
-					that.audioSource = jsmpegAudioContext.createBufferSource();
-					that.audioSource.buffer = buffer;
-					//that.audioSource.connect(jsmpegAudioContext.destination);
-					that.audioGainNode = jsmpegAudioContext.createGain();
-					that.audioSource.connect(that.audioGainNode);
-					console.log('set volume', that.volume);
-					that.audioGainNode.gain.value = that.volume;
-					that.audioGainNode.connect(jsmpegAudioContext.destination);
-					that.audioLoaded=true;
+	      	that.audioBuffer = buffer;
+					that.audioLoaded = true;
       }    
   );
 	
@@ -108,6 +102,12 @@ jsmpeg.prototype.audioLoadCallback = function(file) {
 }
 
 jsmpeg.prototype.audioStart = function(file) {
+	this.audioSource = jsmpegAudioContext.createBufferSource();
+	this.audioSource.buffer = this.audioBuffer;
+	this.audioGainNode = jsmpegAudioContext.createGain();
+	this.audioSource.connect(this.audioGainNode);
+	this.audioGainNode.gain.value = this.volume;
+	this.audioGainNode.connect(jsmpegAudioContext.destination);
 	this.audioStartTime = jsmpegAudioContext.currentTime;
 	this.audioSource.start(0);
 }
@@ -151,6 +151,13 @@ jsmpeg.prototype.videoLoadCallback = function(file) {
 	}
 };
 
+jsmpeg.prototype.restart = function(file) {
+	this.stop();
+	this.audioSource.stop();
+	
+	this.audioStart();
+	this.play();
+}
 jsmpeg.prototype.play = function(file) {
 	if( this.playing ) { return; }
 	this.targetTime = Date.now();
@@ -166,11 +173,9 @@ jsmpeg.prototype.stop = function(file) {
 	if( this.buffer ) {
 		this.buffer.index = this.firstSequenceHeader;
 	}
+	this.currentFrame=0;
 	this.playing = false;
-	if( this.client ) {
-		this.client.close();
-		this.client = null;
-	}
+	this.audioSource.stop();
 };
 
 
@@ -249,15 +254,17 @@ jsmpeg.prototype.nextFrame = function() {
 
 jsmpeg.prototype.scheduleNextFrame = function() {
 	
-	var videoTime = this.currentFrame/this.pictureRate;
-	var audioTime = jsmpegAudioContext.currentTime-this.audioStartTime;
-	
+
 	this.lateTime = (Date.now() - this.targetTime);
 	if(this.audioUrl){
-		this.lateTime += (audioTime-videoTime);
+		var videoTime = this.currentFrame/this.pictureRate;
+		var audioTime = jsmpegAudioContext.currentTime-this.audioStartTime;
+		this.avSyncTime = (audioTime-videoTime)*1000;
+		this.lateTime += this.avSyncTime;
 	}
-	//this.lateTime = videoTime-audioTime;
-	var wait = Math.max(0, (1000/this.pictureRate) - this.lateTime);
+	
+	var wait = Math.max(0, ((1000/this.pictureRate) - this.lateTime) );
+	
 	this.targetTime = Date.now() + wait;
 
 
