@@ -1,4 +1,104 @@
-(function(window){ "use strict";
+/*!
+audiocontext-polyfill.js v0.1.1
+(c) 2013 - 2014 Shinnosuke Watanabe
+Licensed under the MIT license
+*/
+
+(function(window, undefined) {
+  'use strict';
+
+  window.AudioContext = window.AudioContext ||
+                        window.webkitAudioContext;
+
+  window.OfflineAudioContext = window.OfflineAudioContext ||
+                               window.webkitOfflineAudioContext;
+
+  var Proto = AudioContext.prototype;
+
+  var tmpctx = new AudioContext();
+
+  // Support alternate names
+  // start (noteOn), stop (noteOff), createGain (createGainNode), etc.
+  var isStillOld = function(normative, old) {
+    return normative === undefined && old !== undefined;
+  };
+
+  var bufProto = tmpctx.createBufferSource().constructor.prototype;
+
+  if (isStillOld(bufProto.start, bufProto.noteOn) ||
+  isStillOld(bufProto.stop, bufProto.noteOff)) {
+    var nativeCreateBufferSource = Proto.createBufferSource;
+
+    Proto.createBufferSource = function createBufferSource() {
+      var returnNode = nativeCreateBufferSource.call(this);
+      returnNode.start = returnNode.start || returnNode.noteOn;
+      returnNode.stop = returnNode.stop || returnNode.noteOff;
+
+      return returnNode;
+    };
+  }
+
+  // Firefox 24 doesn't support OscilatorNode
+  if (typeof tmpctx.createOscillator === 'function') {
+    var oscProto = tmpctx.createOscillator().constructor.prototype;
+
+    if (isStillOld(oscProto.start, oscProto.noteOn) ||
+    isStillOld(oscProto.stop, oscProto.noteOff)) {
+      var nativeCreateOscillator = Proto.createOscillator;
+
+      Proto.createOscillator = function createOscillator() {
+        var returnNode = nativeCreateOscillator.call(this);
+        returnNode.start = returnNode.start || returnNode.noteOn;
+        returnNode.stop = returnNode.stop || returnNode.noteOff;
+
+        return returnNode;
+      };
+    }
+  }
+
+  if (Proto.createGain === undefined && Proto.createGainNode !== undefined) {
+    Proto.createGain = Proto.createGainNode;
+  }
+
+  if (Proto.createDelay === undefined && Proto.createDelayNode !== undefined) {
+    Proto.createDelay = Proto.createGainNode;
+  }
+
+  if (Proto.createScriptProcessor === undefined &&
+  Proto.createJavaScriptNode !== undefined) {
+    Proto.createScriptProcessor = Proto.createJavaScriptNode;
+  }
+
+  // Black magic for iOS
+  var is_iOS = (navigator.userAgent.indexOf('like Mac OS X') !== -1);
+  if (is_iOS) {
+    var OriginalAudioContext = AudioContext;
+    window.AudioContext = function AudioContext() {
+      var iOSCtx = new OriginalAudioContext();
+
+      var body = document.body;
+      var tmpBuf = iOSCtx.createBufferSource();
+      var tmpProc = iOSCtx.createScriptProcessor(256, 1, 1);
+
+      body.addEventListener('touchstart', instantProcess, false);
+
+      function instantProcess() {
+        tmpBuf.start(0);
+        tmpBuf.connect(tmpProc);
+        tmpProc.connect(iOSCtx.destination);
+      }
+
+      // This function will be called once and for all.
+      tmpProc.onaudioprocess = function() {
+        tmpBuf.disconnect();
+        tmpProc.disconnect();
+        body.removeEventListener('touchstart', instantProcess, false);
+        tmpProc.onaudioprocess = null;
+      };
+
+      return iOSCtx;
+    };
+  }
 
 // jsmpeg by Dominic Szablewski - phoboslab.org, github.com/phoboslab
 //
@@ -32,6 +132,7 @@ var jsmpeg = window.jsmpeg = function( url, opts ) {
 	this.autoplay = !!opts.autoplay;
 	this.loop = !!opts.loop;
 	this.audioUrl = opts.audioUrl || null;
+	this.audioEnabled = false;
 	this.audioBuffer=0;
 	this.volume = (typeof opts.volume==='undefined')?1:opts.volume;
 	this.externalProggressCallback = opts.onprogress || null;
@@ -102,6 +203,7 @@ jsmpeg.prototype.audioLoadCallback = function(file) {
 }
 
 jsmpeg.prototype.audioStart = function(file) {
+	this.audioSource = null;
 	this.audioSource = jsmpegAudioContext.createBufferSource();
 	this.audioSource.buffer = this.audioBuffer;
 	this.audioGainNode = jsmpegAudioContext.createGain();
@@ -139,6 +241,7 @@ jsmpeg.prototype.videoLoadCallback = function(file) {
 	
 	if( this.autoplay ) {
 		if(this.audioUrl){
+			this.audioEnabled=true;
 			//wait for audio to be ready
 			this.avVideoSyncCallback();
 		}else{
@@ -153,10 +256,11 @@ jsmpeg.prototype.videoLoadCallback = function(file) {
 
 jsmpeg.prototype.restart = function(file) {
 	this.stop();
-	this.audioSource.stop();
-	
-	this.audioStart();
-	this.play();
+	if(this.audioEnabled) this.audioSource.stop();
+	this.audioEnabled=true;
+	this.avVideoSyncCallback();
+	//this.audioStart();
+	//this.play();
 }
 jsmpeg.prototype.play = function(file) {
 	if( this.playing ) { return; }
@@ -175,7 +279,7 @@ jsmpeg.prototype.stop = function(file) {
 	}
 	this.currentFrame=0;
 	this.playing = false;
-	this.audioSource.stop();
+	if(this.audioEnabled) this.audioSource.stop();
 };
 
 
@@ -256,11 +360,12 @@ jsmpeg.prototype.scheduleNextFrame = function() {
 	
 
 	this.lateTime = (Date.now() - this.targetTime);
-	if(this.audioUrl){
+
+	if(this.audioEnabled){
 		var videoTime = this.currentFrame/this.pictureRate;
 		var audioTime = jsmpegAudioContext.currentTime-this.audioStartTime;
 		this.avSyncTime = (audioTime-videoTime)*1000;
-		this.lateTime += this.avSyncTime;
+		this.lateTime = this.avSyncTime;
 	}
 	
 	var wait = Math.max(0, ((1000/this.pictureRate) - this.lateTime) );

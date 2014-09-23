@@ -49,7 +49,7 @@ while( (frame = player.nextFrame()) ) {
 ```
 
 
-### With Audio (WebAudio API) ###
+### With Synced Audio (WebAudio API) ###
 
 ```javascript
 // Synopsis: var player = new jsmpeg(urlToFile, options);
