@@ -251,9 +251,10 @@ jsmpeg.prototype.scheduleNextFrame = function() {
 	var videoTime = this.currentFrame/this.pictureRate;
 	var audioTime = jsmpegAudioContext.currentTime-this.audioStartTime;
 	
-	
-	this.lateTime = (Date.now() - this.targetTime)+(audioTime-videoTime);
-	console.log(audioTime-videoTime, this.lateTime);
+	this.lateTime = (Date.now() - this.targetTime);
+	if(this.audioUrl){
+		this.lateTime += (audioTime-videoTime);
+	}
 	//this.lateTime = videoTime-audioTime;
 	var wait = Math.max(0, (1000/this.pictureRate) - this.lateTime);
 	this.targetTime = Date.now() + wait;
