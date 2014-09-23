@@ -61,6 +61,7 @@ var canvas = document.getElementById('videoCanvas');
 var player = new jsmpeg('video.mpeg', {canvas: canvas, audioUrl: 'audio.mp3', autoplay: true, loop: true});
 
 player.pause();
+player.setVolume(0.5); //range from 0-1
 player.play();
 player.stop();
 
